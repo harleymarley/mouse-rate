@@ -1,0 +1,63 @@
+name: Build Mouse Rate
+
+# Every push builds the app, so anyone can see it compiles from this exact code.
+# To publish a download: Actions > Build Mouse Rate > Run workflow, enter a version like 1.0.0.
+# Pushing a tag like v1.0.0 does the same.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (for example 1.0.0). Leave empty to only build."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check there is no network code
+        run: |
+          if grep -rnE "URLSession|NSURLConnection|CFNetwork|import Network|NWConnection|CFSocket|socket\(|import WebKit|WKWebView" Sources; then
+            echo "Network code found. Mouse Rate must not talk to the network."; exit 1
+          fi
+          echo "No network code found."
+
+      - name: Work out the version
+        id: ver
+        run: |
+          V=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then V="${GITHUB_REF_NAME#v}"; fi
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then V="${{ github.event.inputs.version }}"; fi
+          echo "version=${V:-0.0.0-dev}" >> "$GITHUB_OUTPUT"
+          echo "publish=$([[ -n "$V" ]] && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+
+      - name: Build app and DMG
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          REPO_URL: https://github.com/${{ github.repository }}
+        run: bash ./scripts/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MouseRate-dmg
+          path: |
+            build/MouseRate.dmg
+            build/MouseRate.dmg.sha256
+
+      - name: Publish release
+        if: steps.ver.outputs.publish == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.ver.outputs.version }}
+        run: |
+          gh release create "v$V" build/MouseRate.dmg build/MouseRate.dmg.sha256 \
+            --target "$GITHUB_SHA" --title "Mouse Rate $V" --notes-file RELEASE_NOTES.md --latest
