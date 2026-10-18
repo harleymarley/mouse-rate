@@ -15,7 +15,7 @@ The app is the full Almost Perfect mouse test, built as a real Mac app: the same
 1. Download **MouseRate.dmg** from the [latest release](../../releases/latest).
 2. Open it and drag **Mouse Rate** into **Applications**.
 3. Open Mouse Rate. The first time, macOS says it can't verify the app. That's because the app isn't signed with a paid Apple developer certificate yet. Open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
-4. Allow **Input Monitoring** when the app asks, then click **Reopen Mouse Rate**.
+4. When Mouse Rate asks for **Input Monitoring**, click **Open System Settings**, turn on **Mouse Rate**, then click **Quit & Reopen**.
 5. Move your mouse in steady circles.
 
 Works on macOS 13 Ventura and newer, on Apple silicon and Intel Macs.
@@ -24,11 +24,27 @@ Works on macOS 13 Ventura and newer, on Apple silicon and Intel Macs.
 
 - It counts how many reports each mouse sends per second. That's all.
 - It never reads which keys you press, which buttons you click or where your cursor is.
-- It saves nothing and sends nothing. There is no network code in this app, and every build checks for that automatically ([see the workflow](.github/workflows/build.yml)).
+- It saves nothing about you or your mouse, and sends nothing. There is no network code in this app, and every build checks for that automatically ([see the workflow](.github/workflows/build.yml)).
 - It's a native app. There's no web page or browser engine inside it, and links to websites open in your normal browser.
 - It needs Input Monitoring because macOS treats any app that listens to a mouse or keyboard directly that way. You can turn it off again in System Settings at any time.
 
-The whole app is about 2,400 lines of Swift in [`Sources/`](Sources). The polling rate counting is in [`HIDMonitor.swift`](Sources/HIDMonitor.swift), on its own thread so the window's drawing can't slow it down.
+The whole app is about 2,600 lines of Swift in [`Sources/`](Sources). The polling rate counting is in [`HIDMonitor.swift`](Sources/HIDMonitor.swift), on its own thread so the window's drawing can't slow it down.
+
+## If it keeps asking for Input Monitoring
+
+macOS ties the Input Monitoring setting to the exact copy of the app it was given to. Mouse Rate isn't signed with a paid Apple certificate yet, so every new version looks like a different app to macOS. The old entry stays switched on in System Settings, but it no longer counts, macOS doesn't ask again, and deleting the app doesn't remove it.
+
+Since version 1.0.1, Mouse Rate clears its own old entry and asks again by itself, so all you do is turn the switch on. On 1.0.0, or if it's still stuck:
+
+1. Open **System Settings > Privacy & Security > Input Monitoring**.
+2. Select **Mouse Rate** and click the **minus** button to remove it.
+3. Open Mouse Rate and click **Allow**.
+
+Or run this in Terminal, then open Mouse Rate again:
+
+```
+tccutil reset ListenEvent com.almostperfecttech.mouserate
+```
 
 ## Build it yourself
 
