@@ -8,15 +8,23 @@
 // only about once per frame (about 120 a second), which is the very problem this app gets around.
 //
 // What this file does NOT do: it never reads which buttons you press or where the cursor is,
-// never stores anything, and never talks to the network. It only counts how many reports arrive.
+// never stores anything about you or your mouse, and never talks to the network. It only counts
+// how many reports arrive. (The one thing it remembers is which build of the app last asked
+// macOS for Input Monitoring, so it asks once per version instead of every launch.)
 
 import Foundation
+import AppKit
+import Security
 import IOKit
 import IOKit.hid
 import IOKit.hidsystem
 
 /// Carries the open result from the counting thread back to start().
-private final class OpenResult { var code: IOReturn = kIOReturnError }
+private final class OpenResult { var code: IOReturn = kIOReturnError; var keep = false }
+
+// What IOKit returns when Input Monitoring isn't allowed for this copy of the app.
+private let ioNotPermitted = IOReturn(bitPattern: 0xE00002E2)   // kIOReturnNotPermitted
+private let ioNotPrivileged = IOReturn(bitPattern: 0xE00002C1)  // kIOReturnNotPrivileged
 
 struct MouseDevice: Identifiable {
     let id: String          // one entry per physical mouse (product, transport, location, usage)
@@ -36,6 +44,20 @@ final class HIDMonitor: ObservableObject {
     @Published var openFailed = false
     @Published var devices: [MouseDevice] = []
 
+    // What the permission card shows
+    @Published var asking = false            // waiting on macOS to show or answer its prompt
+    @Published var clearedOldEntry = false   // removed an Input Monitoring entry an earlier copy left behind
+    @Published var needsManualFix = false    // macOS kept that old entry, so the card shows the manual steps
+    @Published var restarting = false        // access just came through and the app is reopening to use it
+    @Published private(set) var lastOpenCode: IOReturn = 0
+
+    private var launched = false
+    private var checkedOnce = false
+    private var grantedThisSession = false   // turned on while this copy was running
+    private let bundleID = Bundle.main.bundleIdentifier ?? "com.almostperfecttech.mouserate"
+    private let build = buildFingerprint()
+    private let askedKey = "inputMonitoringAskedForBuild"
+
     // Everything below is shared between the counting thread and the main thread, behind `lock`.
     private let lock = NSLock()
     private var manager: IOHIDManager?
@@ -50,18 +72,119 @@ final class HIDMonitor: ObservableObject {
     private var timer: Timer?
 
     // MARK: permission (System Settings > Privacy & Security > Input Monitoring)
+    //
+    // macOS ties an Input Monitoring entry to the exact copy of the app it was given to. Mouse Rate is
+    // signed without a paid Apple certificate, so every new version (and every rebuild) looks like a
+    // different app to macOS. The old entry still shows as on in System Settings, but it no longer
+    // counts, macOS doesn't ask again on its own, and deleting the app doesn't remove the entry.
+    // So when a new copy has no working access, Mouse Rate clears its own old entry (only its own,
+    // by bundle ID) and asks once. All it takes from the person is turning the switch on.
 
     func checkAccess() {
         let state = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
-        if state == kIOHIDAccessTypeGranted { access = .granted }
-        else if state == kIOHIDAccessTypeDenied { access = .denied }
-        else { access = .unknown }
+        let now: Access = state == kIOHIDAccessTypeGranted ? .granted : (state == kIOHIDAccessTypeDenied ? .denied : .unknown)
+        if checkedOnce && now == .granted && access != .granted { grantedThisSession = true }
+        checkedOnce = true
+        if access != now { access = now }
     }
 
-    func requestAccess() {
-        let ok = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+    /// Runs once when the window opens.
+    func launch() {
+        guard !launched else { return }
+        launched = true
         checkAccess()
-        if ok || access == .granted { start() }
+        if access == .granted {
+            start()
+            if running { return }
+        }
+        // No working access. Once per build, clear whatever an earlier copy left and ask macOS.
+        // On a first install there's nothing to clear, so this just brings up the macOS prompt.
+        if UserDefaults.standard.string(forKey: askedKey) != build {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in self?.ask(clearFirst: true) }
+        }
+    }
+
+    /// The Allow button. Works out what's in the way and deals with it.
+    func allow() {
+        checkAccess()
+        switch access {
+        case .unknown:
+            ask(clearFirst: false)
+        case .denied:
+            // Either the switch isn't on yet, or the entry belongs to an earlier copy of the app.
+            // If this copy already made the entry, the switch just needs turning on.
+            if UserDefaults.standard.string(forKey: askedKey) == build && !needsManualFix { openSettings() }
+            else { ask(clearFirst: true) }
+        case .granted:
+            openFailed = false
+            start()
+            if running { return }
+            if grantedThisSession { reopenSoon() } else { ask(clearFirst: true) }
+        }
+    }
+
+    /// Every 1.5 seconds while not counting. Notices the moment Mouse Rate is turned on.
+    func poll() {
+        guard !running else { return }
+        let before = access
+        checkAccess()
+        guard access == .granted else { return }
+        if before != .granted { openFailed = false }
+        guard !openFailed else { return }
+        start()
+        if !running && grantedThisSession { reopenSoon() }
+    }
+
+    func openSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Optionally clears this app's old entry, then asks macOS. Runs off the main thread so the
+    /// window never freezes while the macOS prompt is up.
+    private func ask(clearFirst: Bool) {
+        guard !asking, !running else { return }
+        asking = true
+        UserDefaults.standard.set(build, forKey: askedKey)
+        let id = bundleID
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var cleared = false, blocked = false
+            if clearFirst && IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) != kIOHIDAccessTypeUnknown {
+                if clearInputMonitoringEntry(id) {
+                    for _ in 0..<10 {
+                        if IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeUnknown { cleared = true; break }
+                        usleep(100_000)
+                    }
+                }
+                blocked = !cleared
+            }
+            let before = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
+            let ok = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.asking = false
+                if cleared { self.clearedOldEntry = true }
+                self.needsManualFix = blocked
+                self.checkAccess()
+                if ok || self.access == .granted {
+                    self.openFailed = false
+                    self.start()
+                    if !self.running && self.grantedThisSession { self.reopenSoon() }
+                    return
+                }
+                // macOS shows its own prompt only when there's no entry yet. Otherwise go straight to the switch.
+                if before != kIOHIDAccessTypeUnknown { self.openSettings() }
+            }
+        }
+    }
+
+    /// macOS hands a new Input Monitoring setting to an app only after it restarts. System Settings
+    /// offers Quit & Reopen for that. If it was skipped, Mouse Rate reopens itself.
+    private func reopenSoon() {
+        guard !restarting else { return }
+        restarting = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { relaunchApp() }
     }
 
     // MARK: start listening (on a dedicated thread)
@@ -89,20 +212,26 @@ final class HIDMonitor: ObservableObject {
             }, ctx)
             IOHIDManagerScheduleWithRunLoop(m, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
             result.code = IOHIDManagerOpen(m, IOOptionBits(kIOHIDOptionsTypeNone))
-            if result.code == kIOReturnSuccess {
+            // IOHIDManagerOpen returns the error of the first mouse that failed to open, even when the
+            // others opened fine (another mouse app can hold one connection for itself). Only a
+            // permission error means nothing can be counted.
+            result.keep = result.code != ioNotPermitted && result.code != ioNotPrivileged
+            if result.keep {
                 self.lock.lock(); self.manager = m; self.hidRunLoop = CFRunLoopGetCurrent(); self.lock.unlock()
             } else {
+                IOHIDManagerClose(m, IOOptionBits(kIOHIDOptionsTypeNone))
                 IOHIDManagerUnscheduleFromRunLoop(m, CFRunLoopGetCurrent(), CFRunLoopMode.defaultMode.rawValue)
             }
             opened.signal()
-            if result.code == kIOReturnSuccess { CFRunLoopRun() }   // reports are handled here, off the main thread
+            if result.keep { CFRunLoopRun() }   // reports are handled here, off the main thread
         }
         thread.name = "Mouse Rate counting"
         thread.qualityOfService = .userInteractive
         thread.start()
         opened.wait()
 
-        if result.code != kIOReturnSuccess {
+        lastOpenCode = result.code
+        if !result.keep {
             openFailed = true
             checkAccess()
             return
@@ -147,7 +276,7 @@ final class HIDMonitor: ObservableObject {
     func restart() {
         stop()
         checkAccess()
-        if access == .granted { start() }
+        if access == .granted { openFailed = false; start() }
     }
 
     // MARK: device callbacks (counting thread)
@@ -258,6 +387,35 @@ final class HIDMonitor: ObservableObject {
         lock.unlock()
         publish()
     }
+}
+
+/// A fingerprint of this exact build: the hash in its code signature, the same thing macOS ties the
+/// Input Monitoring entry to. Falls back to the version and build time.
+private func buildFingerprint() -> String {
+    var code: SecCode?
+    var staticCode: SecStaticCode?
+    var info: CFDictionary?
+    if SecCodeCopySelf(SecCSFlags(), &code) == errSecSuccess, let code = code,
+       SecCodeCopyStaticCode(code, SecCSFlags(), &staticCode) == errSecSuccess, let staticCode = staticCode,
+       SecCodeCopySigningInformation(staticCode, SecCSFlags(), &info) == errSecSuccess,
+       let dict = info as? [String: Any], let hash = dict[kSecCodeInfoUnique as String] as? Data, !hash.isEmpty {
+        return hash.map { String(format: "%02x", $0) }.joined()
+    }
+    return "\(AppConfig.version) \(AppConfig.built)"
+}
+
+/// Removes Mouse Rate's own Input Monitoring entry with Apple's tccutil, so the next request creates a
+/// fresh one for this copy. The bundle ID is always passed, so no other app's setting is touched.
+private func clearInputMonitoringEntry(_ bundleID: String) -> Bool {
+    guard !bundleID.isEmpty else { return false }
+    let p = Process()
+    p.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+    p.arguments = ["reset", "ListenEvent", bundleID]
+    p.standardOutput = FileHandle.nullDevice
+    p.standardError = FileHandle.nullDevice
+    do { try p.run() } catch { return false }
+    p.waitUntilExit()
+    return p.terminationStatus == 0
 }
 
 /// The standard polling rate a reading is closest to, if it is close enough to call.

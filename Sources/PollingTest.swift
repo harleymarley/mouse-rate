@@ -173,23 +173,45 @@ struct PollingTest: View {
                 Text("To count your mouse's reports, macOS needs you to allow Input Monitoring for Mouse Rate. The app only counts how many reports arrive. It never reads your keys, your clicks or where the cursor is, and it has no network code at all. The other three tests work without this.")
                     .font(.ui(15)).foregroundColor(.aptSoft).fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("1.  Click Allow. macOS asks, or opens System Settings.").font(.ui(15)).foregroundColor(.aptText)
-                    Text("2.  In Privacy & Security, Input Monitoring, turn on Mouse Rate.").font(.ui(15)).foregroundColor(.aptText)
-                    Text("3.  Come back and click Reopen Mouse Rate.").font(.ui(15)).foregroundColor(.aptText)
-                    Text("Mouse Rate is already on in the list, but you still see this? That entry is from an older copy of the app. Select it, click the minus button to remove it, then click Allow here again.")
-                        .font(.ui(13)).foregroundColor(.aptMuted).fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
-                        .padding(.top, 4)
+                    Text("1.  When macOS asks, click Open System Settings. No prompt? Click Allow.").font(.ui(15)).foregroundColor(.aptText)
+                    Text("2.  Turn on Mouse Rate under Input Monitoring.").font(.ui(15)).foregroundColor(.aptText)
+                    Text("3.  Click Quit & Reopen. If you skip that, Mouse Rate reopens by itself.").font(.ui(15)).foregroundColor(.aptText)
                 }
+                HStack(alignment: .top, spacing: 8) {
+                    Circle().fill(monitor.restarting ? Color.aptOk : Color.aptOrange).frame(width: 8, height: 8).padding(.top, 5)
+                    Text(permissionStatus).font(.ui(14, .semibold)).foregroundColor(monitor.restarting ? .aptOk : .aptHi)
+                        .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
+                }
+                .animation(.easeOut(duration: 0.25), value: permissionStatus)
                 HStack(spacing: 12) {
-                    PrimaryButton(title: "Allow") {
-                        monitor.requestAccess()
-                        if monitor.access == .denied, let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
+                    PrimaryButton(title: "Allow") { monitor.allow() }
                     SecondaryButton(title: "Reopen Mouse Rate", action: relaunchApp)
                 }
+                Text("Still stuck? In System Settings, open Privacy & Security, then Input Monitoring. Select Mouse Rate, click the minus button to remove it, then click Allow here.")
+                    .font(.ui(13)).foregroundColor(monitor.needsManualFix ? .aptSoft : .aptMuted)
+                    .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
+                if monitor.openFailed {
+                    Text("For support: access \(String(describing: monitor.access)), open code \(String(format: "%08x", UInt32(bitPattern: monitor.lastOpenCode)))")
+                        .font(.system(size: 11, design: .monospaced)).foregroundColor(.aptDim)
+                }
             }
+        }
+    }
+
+    /// One line on the permission card that says what Mouse Rate is waiting for.
+    private var permissionStatus: String {
+        if monitor.restarting { return "Input Monitoring is on. Reopening Mouse Rate so it can start counting." }
+        if monitor.asking { return "Waiting for macOS." }
+        if monitor.needsManualFix { return "macOS kept an old entry from an earlier copy of Mouse Rate. Remove it once with the steps below." }
+        switch monitor.access {
+        case .granted:
+            return "macOS lists Mouse Rate as allowed, but this copy can't read your mouse yet. Click Allow to fix it."
+        case .denied:
+            return monitor.clearedOldEntry
+                ? "Cleared an old entry from an earlier copy. Now turn on Mouse Rate in Input Monitoring."
+                : "Waiting for Mouse Rate to be turned on in Input Monitoring."
+        case .unknown:
+            return "Click Allow and macOS will ask."
         }
     }
 }

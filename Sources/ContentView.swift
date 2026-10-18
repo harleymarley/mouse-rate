@@ -56,8 +56,8 @@ struct ContentView: View {
         .onAppear {
             let m = monitor
             flow.restartMonitor = { m.restart() }
-            monitor.checkAccess()
-            if monitor.access == .granted { monitor.start() }
+            // starts counting if Input Monitoring works, otherwise sorts out the permission (see HIDMonitor)
+            monitor.launch()
             // the welcome card waits until the permission is sorted, so it never covers the Allow button
             if monitor.running { DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { flow.intro() } }
         }
@@ -65,9 +65,7 @@ struct ContentView: View {
             if isRunning { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { flow.intro() } }
         }
         .onReceive(poll.$now) { _ in
-            guard !monitor.running else { return }
-            monitor.checkAccess()
-            if monitor.access == .granted && !monitor.openFailed { monitor.start() }
+            monitor.poll()   // notices the moment Mouse Rate is turned on in System Settings
         }
     }
 
