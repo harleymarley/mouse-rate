@@ -58,6 +58,7 @@ struct ReportView: View {
                 Text(savedNote).font(.ui(14)).foregroundColor(.aptOk)
             }
             coffeeCard.padding(.top, 8)
+            videoCard
         }
         .onAppear {
             quip = flow.cheeky ? Copy.pick(["That's the full workout. Need a towel?", "Four tests. Zero shame.", "You and your mouse should get a room.", "Same time next week?"]) : ""
@@ -200,6 +201,48 @@ struct ReportView: View {
             .fill(LinearGradient(colors: [Color.coffee.opacity(0.16), Color.coffee.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Color.coffee.opacity(0.5), lineWidth: 1))
         .shadow(color: Color.coffee.opacity(0.18), radius: 30, y: 14)
+    }
+
+    // MARK: the video
+
+    private var videoCard: some View {
+        HStack(spacing: 22) {
+            Image(systemName: "play.fill")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(.aptInk)
+                .offset(x: 2)
+                .frame(width: 66, height: 66)
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.aptOrange))
+                .shadow(color: Color.aptOrange.opacity(0.5), radius: 14, y: 6)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Watch the ultimate mouse guide for Mac").font(.display(26)).foregroundColor(.aptText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(flow.cheeky
+                     ? "Now find out which mouse your Mac actually deserves, and which one to skip."
+                     : "The video this test was made for: which mouse to get for your Mac, and which one to skip.")
+                    .font(.ui(16)).foregroundColor(.aptSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            Button(action: {
+                if let url = URL(string: AppConfig.videoURL) { NSWorkspace.shared.open(url) }
+            }) {
+                Text("Watch the video")
+                    .font(.ui(16, .bold))
+                    .foregroundColor(.aptInk)
+                    .padding(.horizontal, 24).padding(.vertical, 14)
+                    .background(Capsule().fill(LinearGradient(colors: [.aptHi, .aptOrange], startPoint: .top, endPoint: .bottom)))
+                    .shadow(color: Color.aptOrange.opacity(0.45), radius: 14, y: 6)
+            }
+            .buttonStyle(PressStyle())
+            .help("Opens the Almost Perfect mouse video on YouTube.")
+        }
+        .padding(.horizontal, 28).padding(.vertical, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .fill(LinearGradient(colors: [Color.aptOrange.opacity(0.16), Color.aptOrange.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Color.aptOrange.opacity(0.5), lineWidth: 1))
+        .shadow(color: Color.aptOrange.opacity(0.18), radius: 30, y: 14)
     }
 
     private enum Tone { case good, bad, plain, skip }
