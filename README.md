@@ -2,7 +2,7 @@
 
 # Mouse Rate
 
-**See your mouse's real polling rate on a Mac.** Free and open source, by [Almost Perfect Tech](https://www.youtube.com/@AlmostPerfectReviews).
+**See your mouse's real polling rate on a Mac.** Free and open source, by [Almost Perfect Tech](https://www.youtube.com/@AlmostPerfectReviews). Made for our [Mac mouse video](https://youtu.be/xiBbThhUgvY).
 
 On a Mac, every polling rate website shows 60 or 120. That number is your screen's refresh rate, not your mouse. macOS receives every report your mouse sends, but it only hands the browser the newest position once per screen refresh.
 
