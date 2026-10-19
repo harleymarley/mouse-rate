@@ -2,16 +2,16 @@
 # Builds "Mouse Rate.app" (Apple silicon + Intel) and MouseRate.dmg.
 # Needs a Mac with the Xcode Command Line Tools (xcode-select --install). No Xcode project needed.
 #
-#   ./scripts/build.sh                 # version 1.0.1
+#   ./scripts/build.sh                 # version 1.0.2
 #   VERSION=1.2.0 ./scripts/build.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-1.0.1}"
+VERSION="${VERSION:-1.0.2}"
 REPO_URL="${REPO_URL:-https://github.com/harleymarley/mouse-rate}"
 SITE_URL="${SITE_URL:-https://mouse.almostperfecttech.com}"
-# The mouse video. Until it's published this points at the channel; put the video link here when it's live.
-VIDEO_URL="${VIDEO_URL:-https://www.youtube.com/@AlmostPerfectReviews}"
+# The Almost Perfect Mac mouse video. "Copy and paste in the YouTube comments" opens it.
+VIDEO_URL="${VIDEO_URL:-https://youtu.be/xiBbThhUgvY}"
 APP_NAME="Mouse Rate"
 EXE="MouseRate"
 OUT="build"
