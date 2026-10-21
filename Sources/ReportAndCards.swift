@@ -57,7 +57,10 @@ struct ReportView: View {
             if !savedNote.isEmpty {
                 Text(savedNote).font(.ui(14)).foregroundColor(.aptOk)
             }
-            coffeeCard.padding(.top, 8)
+            Group {
+                leaderboardCard.padding(.top, 8)
+                coffeeCard
+            }
             videoCard
         }
         .onAppear {
@@ -243,6 +246,51 @@ struct ReportView: View {
             .fill(LinearGradient(colors: [Color.aptOrange.opacity(0.16), Color.aptOrange.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Color.aptOrange.opacity(0.5), lineWidth: 1))
         .shadow(color: Color.aptOrange.opacity(0.18), radius: 30, y: 14)
+    }
+
+    // MARK: leaderboard
+
+    /// Sharing is optional, and Mouse Rate has no network code, so it happens on the website. This opens the
+    /// leaderboard in the browser with the results after the # in the address (that part never goes to a server
+    /// by itself). The person picks a nickname or gets a made-up one, chooses whether to show the mouse's name,
+    /// and presses Share there.
+    private var leaderboardCard: some View {
+        HStack(spacing: 22) {
+            Image(systemName: "trophy.fill")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundColor(.aptHi)
+                .frame(width: 66, height: 66)
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.aptCardHi))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.aptOrange.opacity(0.45), lineWidth: 1))
+                .shadow(color: Color.aptOrange.opacity(0.3), radius: 14, y: 6)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(flow.cheeky ? "Want to brag on the leaderboard?" : "Share your results on the leaderboard?")
+                    .font(.display(26)).foregroundColor(.aptText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(leaderboardText)
+                    .font(.ui(16)).foregroundColor(.aptSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 12)
+            SecondaryButton(title: "Share on the leaderboard") {
+                if let url = flow.leaderboardURL() { NSWorkspace.shared.open(url) }
+            }
+            .disabled(flow.poll == nil)
+            .opacity(flow.poll == nil ? 0.5 : 1)
+            .help("Opens the leaderboard in your browser with your results filled in. Nothing is shared until you press Share there.")
+        }
+        .padding(.horizontal, 28).padding(.vertical, 24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
+            .fill(LinearGradient(colors: [Color.white.opacity(0.06), Color.white.opacity(0.015)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Color.aptLine2, lineWidth: 1))
+    }
+
+    private var leaderboardText: String {
+        if flow.poll == nil { return "Run step 1 first. The leaderboard needs your polling rate." }
+        return flow.cheeky
+            ? "It's up to you. This opens the leaderboard in your browser. Pick a nickname, or we'll make one up. Nothing is shared until you press Share there."
+            : "It's up to you. This opens the leaderboard in your browser, where you can add a nickname or get a made-up one. Nothing is shared until you press Share there, and your mouse's name only if you tick the box."
     }
 
     private enum Tone { case good, bad, plain, skip }

@@ -2,7 +2,7 @@
 // build.sh rewrites the values below at build time. The defaults are used for local builds.
 
 enum AppConfig {
-    static let version = "1.0.2"
+    static let version = "1.0.3"
     static let repoURL = "https://github.com/harleymarley/mouse-rate"
     static let siteURL = "https://mouse.almostperfecttech.com"
     /// Where "Copy and paste in the YouTube comments" sends people: the Almost Perfect Mac mouse video.

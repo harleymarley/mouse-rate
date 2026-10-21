@@ -156,6 +156,7 @@ struct ContentView: View {
             Divider().background(Color.aptLine).padding(.bottom, 8)
             HStack(spacing: 18) {
                 Link("Full mouse test website", destination: URL(string: AppConfig.siteURL)!)
+                Link("Leaderboard", destination: URL(string: AppConfig.siteURL + "/#board")!)
                 Link("Source code", destination: URL(string: AppConfig.repoURL)!)
                 Link("YouTube", destination: URL(string: "https://www.youtube.com/@AlmostPerfectReviews")!)
                 Link("Tip Jar", destination: URL(string: AppConfig.coffeeURL)!)

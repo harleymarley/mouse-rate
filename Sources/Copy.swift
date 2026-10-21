@@ -43,9 +43,9 @@ enum Copy {
     static func finalCard(cheeky: Bool) -> StepText {
         cheeky
             ? StepText(title: pick(["That was fun for us too.", "Wow. We need a minute.", "Was it good for you?"]),
-                       text: "Here's everything your mouse did. Copy it for the comments, or go again. We won't tell anyone.",
+                       text: "Here's everything your mouse did. Copy it for the comments, or share it on the leaderboard if you're feeling brave.",
                        quip: pick(["Same time next week?", "Call us.", "Don't be a stranger."]))
-            : StepText(title: "Here's your mouse report", text: "Everything in one place. Copy it for the comments if you like.", quip: "")
+            : StepText(title: "Here's your mouse report", text: "Everything in one place. Copy it for the comments, or share it on the leaderboard if you like.", quip: "")
     }
 
     // MARK: polling

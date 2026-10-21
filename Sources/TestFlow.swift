@@ -200,6 +200,24 @@ final class TestFlow: ObservableObject {
 
     // MARK: sharing
 
+    /// The leaderboard on the website, with this run's results after the # as base64url JSON. The browser keeps the
+    /// part after the # to itself. Nothing is shared until the person presses Share on the page, and the mouse's
+    /// name only goes along if they tick the box there.
+    func leaderboardURL() -> URL? {
+        guard let p = poll else { return URL(string: AppConfig.siteURL + "/#board") }
+        var d: [String: Any] = ["v": 1, "src": "app", "app": AppConfig.version, "hz": p.snapped ?? p.avg,
+                                "mouse": mouseName.trimmingCharacters(in: .whitespaces)]
+        if let b = buttons { d["btn"] = ["got": b.worked, "of": b.total, "core": b.mainOK] as [String: Any] }
+        if let dc = doubleClick { d["dc"] = ["phantom": dc.phantom, "clicks": dc.clicks] }
+        if let c = clickSpeed { d["cps"] = (c.score * 10).rounded() / 10 }
+        guard let data = try? JSONSerialization.data(withJSONObject: d, options: [.sortedKeys]) else { return nil }
+        let b64 = data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        return URL(string: AppConfig.siteURL + "/#post=" + b64)
+    }
+
     func commentLine() -> String {
         var parts: [String] = []
         if let g = grade() { parts.append("grade \(g.letter)") }
