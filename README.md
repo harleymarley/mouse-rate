@@ -8,7 +8,7 @@ On a Mac, every polling rate website shows 60 or 120. That number is your screen
 
 Mouse Rate listens to the mouse directly, below the browser, and counts how many reports it sends each second. A 1000Hz gaming mouse shows about 1000. A Bluetooth office mouse shows about 125.
 
-The app is the full Almost Perfect mouse test, built as a real Mac app: the same four guided steps as the website (polling rate, buttons and scroll, double-click and click speed), cheeky mode included. It ends with a report that grades your mouse from A+ to F. You can copy the results into a YouTube comment or save the report as a picture to post. Step 1 shows your real number, the back and forward side buttons work in step 2, and **Test another mouse** starts over without quitting.
+The app is the full Almost Perfect mouse test, built as a real Mac app: the same four guided steps as the website (polling rate, buttons and scroll, double-click and click speed), cheeky mode included. It ends with a report that grades your mouse from A+ to F. You can copy the results into a YouTube comment, save the report as a picture to post, or share your results on the [leaderboard](https://mouse.almostperfecttech.com/#board) if you want to. Step 1 shows your real number, the back and forward side buttons work in step 2, and **Test another mouse** starts over without quitting.
 
 ## Download
 
@@ -26,6 +26,7 @@ Works on macOS 13 Ventura and newer, on Apple silicon and Intel Macs.
 - It never reads which keys you press, which buttons you click or where your cursor is.
 - It saves nothing about you or your mouse, and sends nothing. There is no network code in this app, and every build checks for that automatically ([see the workflow](.github/workflows/build.yml)).
 - It's a native app. There's no web page or browser engine inside it, and links to websites open in your normal browser.
+- Sharing on the leaderboard is optional and happens in your browser. The Share on the leaderboard button opens the website with your results after the # in the address, and nothing is sent until you press Share there.
 - It needs Input Monitoring because macOS treats any app that listens to a mouse or keyboard directly that way. You can turn it off again in System Settings at any time.
 
 The whole app is about 2,600 lines of Swift in [`Sources/`](Sources). The polling rate counting is in [`HIDMonitor.swift`](Sources/HIDMonitor.swift), on its own thread so the window's drawing can't slow it down.
